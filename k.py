@@ -7,7 +7,6 @@ import plotly.express as px
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from datetime import datetime, timedelta
 import json
-import os
 import hashlib
 import time
 from pathlib import Path
@@ -20,6 +19,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# ===== IMPORTANT: REPLACE WITH YOUR HUGGING FACE MODEL NAME =====
+HUGGINGFACE_MODEL_NAME = "krishsinghal006/emotion-roberta-soul"  # e.g., "johndoe/emotion-roberta-model"
+# ================================================================
 
 # Enhanced Custom CSS - Premium Design with Beautiful Navigation
 st.markdown("""
@@ -571,11 +574,6 @@ def calculate_dass_score(responses):
     
     return scores, severity
 
-# ====================
-# HELPER FUNCTION TO COUNT ANSWERED QUESTIONS
-# ====================
-# Add this NEW function after calculate_dass_score():
-
 def count_answered_questions(responses):
     """Count how many questions have been answered (not None)"""
     all_responses = []
@@ -586,6 +584,7 @@ def count_answered_questions(responses):
     total = len(all_responses)
     
     return answered, total
+
 # Authentication Functions
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -598,8 +597,7 @@ def load_users():
             with open(users_file, 'r') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            # If JSON is corrupted, backup the file and start fresh
-            st.error(f" users.json was corrupted. Creating backup and starting fresh.")
+            st.error(f"⚠️ users.json was corrupted. Creating backup and starting fresh.")
             backup_file = Path(f"users_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
             users_file.rename(backup_file)
             return {}
@@ -608,12 +606,11 @@ def load_users():
             return {}
     return {}
 
-
 def save_users(users):
     """Save users with proper JSON serialization"""
     try:
         with open("users.json", 'w') as f:
-            json.dump(users, f, indent=2, default=str)  # default=str handles datetime objects
+            json.dump(users, f, indent=2, default=str)
     except Exception as e:
         st.error(f"Error saving users: {str(e)}")
 
@@ -638,7 +635,6 @@ def register_user(username, password, email):
     save_users(users)
     return True, "Registration successful"
 
-
 def login_user(username, password):
     users = load_users()
     if username not in users:
@@ -649,7 +645,6 @@ def login_user(username, password):
         save_users(users)
         dass_completed = users[username].get('dass_completed', False)
         
-        #  LOAD USER'S SAVED HISTORY - This is the key addition!
         load_user_session_data(username)
         
         return True, "Login successful", dass_completed
@@ -659,16 +654,13 @@ def save_user_session_data(username):
     """Save all session data for a user to their profile with proper serialization"""
     users = load_users()
     if username in users:
-        # Serialize emotion history
         emotion_history_serialized = []
         for entry in st.session_state.emotion_history:
             entry_copy = entry.copy()
-            # Convert datetime to string
             if isinstance(entry_copy.get('timestamp'), datetime):
                 entry_copy['timestamp'] = entry_copy['timestamp'].isoformat()
             emotion_history_serialized.append(entry_copy)
         
-        # Serialize chat history
         chat_history_serialized = []
         for msg in st.session_state.chat_history:
             msg_copy = {
@@ -680,12 +672,10 @@ def save_user_session_data(username):
             }
             chat_history_serialized.append(msg_copy)
         
-        # Convert last_analysis_time to string
         last_analysis_time = st.session_state.last_analysis_time
         if isinstance(last_analysis_time, datetime):
             last_analysis_time = last_analysis_time.isoformat()
         
-        # Update user data
         users[username]['emotion_history'] = emotion_history_serialized
         users[username]['chat_history'] = chat_history_serialized
         users[username]['analysis_count'] = st.session_state.analysis_count
@@ -700,9 +690,7 @@ def load_user_session_data(username):
     if username in users:
         user_data = users[username]
         
-        # Load emotion history
         st.session_state.emotion_history = user_data.get('emotion_history', [])
-        # Convert timestamp strings back to datetime objects
         for entry in st.session_state.emotion_history:
             if isinstance(entry.get('timestamp'), str):
                 try:
@@ -710,7 +698,6 @@ def load_user_session_data(username):
                 except:
                     entry['timestamp'] = datetime.now()
         
-        # Load chat history
         chat_history = user_data.get('chat_history', [])
         st.session_state.chat_history = []
         for msg in chat_history:
@@ -722,7 +709,6 @@ def load_user_session_data(username):
                     msg_copy['timestamp'] = datetime.now()
             st.session_state.chat_history.append(msg_copy)
         
-        # Load other session data
         st.session_state.analysis_count = user_data.get('analysis_count', 0)
         
         last_analysis = user_data.get('last_analysis_time')
@@ -736,31 +722,34 @@ def load_user_session_data(username):
         
         st.session_state.social_media_results = user_data.get('social_media_results', None)
 
-
 @st.cache_resource
 def load_model():
+    """Load model from Hugging Face Hub"""
     try:
-        model_path = "emotion_roberta_model"
-        
-        if not os.path.exists(model_path):
-            st.error(f" Model not found at: {model_path}")
-            st.info("Please ensure the model is in the correct directory")
-            return None, None, None
-        
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = RobertaForSequenceClassification.from_pretrained(model_path).to(device)
-        tokenizer = RobertaTokenizer.from_pretrained(model_path)
-        
-        labels_path = os.path.join(os.path.dirname(model_path), "emotion_labels.json")
-        if os.path.exists(labels_path):
-            with open(labels_path, 'r') as f:
-                emotion_labels = json.load(f)
-        else:
+        with st.spinner("🔄 Loading AI model from Hugging Face... This may take a minute on first load."):
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            
+            # Load model and tokenizer directly from Hugging Face
+            model = RobertaForSequenceClassification.from_pretrained(
+                HUGGINGFACE_MODEL_NAME,
+                trust_remote_code=True
+            ).to(device)
+            
+            tokenizer = RobertaTokenizer.from_pretrained(
+                HUGGINGFACE_MODEL_NAME,
+                trust_remote_code=True
+            )
+            
+            # Use default emotion labels if not available
             emotion_labels = list(MENTAL_HEALTH_MAPPING.keys())
-        
-        return model, tokenizer, emotion_labels
+            
+            st.success("✅ Model loaded successfully!")
+            return model, tokenizer, emotion_labels
+            
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"❌ Error loading model from Hugging Face: {str(e)}")
+        st.info(f"Please ensure '{HUGGINGFACE_MODEL_NAME}' is a valid Hugging Face model repository.")
+        st.info("Make sure your model is public or you have the correct access permissions.")
         return None, None, None
 
 def initialize_hf_chatbot():
@@ -839,7 +828,7 @@ def generate_chatbot_response(user_message, emotions_data, risk_score, chat_hist
     chatbot_client = get_chatbot_client()
     
     if chatbot_client is None:
-        return " I apologize, but I'm having trouble connecting right now. Please try again in a moment, or if this is urgent, please reach out to a crisis helpline."
+        return "⚠️ I apologize, but I'm having trouble connecting right now. Please try again in a moment, or if this is urgent, please reach out to a crisis helpline."
     
     # Crisis detection with expanded keywords
     message_lower = user_message.lower()
@@ -850,28 +839,22 @@ def generate_chatbot_response(user_message, emotions_data, risk_score, chat_hist
     ]
     is_crisis = any(word in message_lower for word in crisis_keywords)
     
-    # Mark crisis for later handling, but don't return immediately
     is_critical_crisis = is_crisis or risk_score > 85
     
-    # Extract emotional context
     primary_emotion = emotions_data[0]['emotion'] if emotions_data else 'neutral'
     emotion_confidence = emotions_data[0]['confidence'] if emotions_data else 0.5
     
-    # Build conversation history context (more detailed)
     conversation_summary = ""
     if len(chat_history) > 0:
-        recent_exchanges = chat_history[-8:]  # Last 4 exchanges (8 messages)
+        recent_exchanges = chat_history[-8:]
         conversation_summary = "Previous conversation context:\n"
         for i, msg in enumerate(recent_exchanges):
             role = "User" if msg['role'] == 'user' else "You (Assistant)"
-            # Include more context for better continuity
             content_preview = msg['content'][:200] if len(msg['content']) > 200 else msg['content']
             conversation_summary += f"{role}: {content_preview}\n"
     
-    # Determine conversation stage and tone
     conversation_stage = "ongoing" if len(chat_history) > 2 else "early"
     
-    # Create comprehensive system prompt
     system_prompt = f"""You are an empathetic, warm, and professional mental health support chatbot. Your goal is to have natural, flowing conversations that make users feel heard, understood, and supported.
 
 **Conversation Guidelines:**
@@ -908,13 +891,11 @@ def generate_chatbot_response(user_message, emotions_data, risk_score, chat_hist
 Generate a thoughtful, flowing response that feels like a real conversation. Avoid being formulaic or overly clinical. If this is a crisis, make sure your response directly addresses what the user said before transitioning to help resources."""
     
     try:
-        # Call the chatbot API
         result = chatbot_client.predict(
             message=system_prompt,
             api_name="/chat"
         )
         
-        # Parse response
         if isinstance(result, dict):
             bot_response = result.get('response', str(result))
         elif isinstance(result, str):
@@ -922,34 +903,27 @@ Generate a thoughtful, flowing response that feels like a real conversation. Avo
         else:
             bot_response = str(result)
         
-        # Clean up response (remove potential artifacts from model)
         bot_response = bot_response.strip()
         
-        # Add contextual support resources based on risk level
-        # CRITICAL CRISIS - Add urgent helpline after empathetic response
         if is_critical_crisis:
-            bot_response += "\n\n **I'm very concerned about your safety right now.** While I'm here to listen and I care about what you're going through, I really need you to reach out for professional help immediately. These are trained professionals who can provide the urgent support you need:\n\n"
+            bot_response += "\n\n⚠️ **I'm very concerned about your safety right now.** While I'm here to listen and I care about what you're going through, I really need you to reach out for professional help immediately. These are trained professionals who can provide the urgent support you need:\n\n"
             bot_response += "- **NIMHANS Crisis Helpline:** 080-46110007\n"
             bot_response += "- **TELE MANAS (24/7):** 14416\n"
             bot_response += "- **Emergency Services:** 112\n\n"
             bot_response += "Please call one of these numbers right now. You don't have to go through this alone, and there are people ready to help you through this moment. Is there someone close to you that you can reach out to as well?"
         
-        # High risk but not critical - gentler approach
         elif risk_score > 66:
-            bot_response += "\n\n I want to mention—I'm noticing some patterns in what you're sharing that concern me. You're clearly going through a lot, and while I'm here to support you, I think speaking with a mental health professional could really help. They have tools and expertise that can make a real difference. Would you be open to exploring that option?\n\n**Professional Support:** NIMHANS: 080-46110007 | TELE MANAS: 14416"
-        
+            bot_response += "\n\n💙 I want to mention—I'm noticing some patterns in what you're sharing that concern me. You're clearly going through a lot, and while I'm here to support you, I think speaking with a mental health professional could really help. They have tools and expertise that can make a real difference. Would you be open to exploring that option?\n\n**Professional Support:** NIMHANS: 080-46110007 | TELE MANAS: 14416"
         
         elif risk_score > 50:
-            bot_response += "\n\n Remember, taking care of your mental health is just as important as physical health. If things feel overwhelming, reaching out to a counselor or therapist can provide valuable support and coping strategies."
+            bot_response += "\n\n💚 Remember, taking care of your mental health is just as important as physical health. If things feel overwhelming, reaching out to a counselor or therapist can provide valuable support and coping strategies."
         
-        # Ensure minimum response quality
         if len(bot_response) < 100:
             bot_response += f"\n\nI'm here to listen and support you. What you're experiencing with {primary_emotion} is valid, and I'd like to understand more about what you're going through. Can you tell me a bit more about what's been on your mind?"
         
         return bot_response
         
     except Exception as e:
-        # Enhanced fallback response
         fallback_responses = {
             'anxious': "I can sense you're feeling anxious right now. Anxiety can be overwhelming, but there are ways to work through it. Let's start with something simple: Can you take a moment to focus on your breathing? Try inhaling slowly for 4 counts, holding for 4, then exhaling for 6. This can help calm your nervous system.",
             
@@ -976,27 +950,6 @@ Generate a thoughtful, flowing response that feels like a real conversation. Avo
 NIMHANS: 080-46110007 | TELE MANAS: 14416
 
 _(I'll be back to full functionality shortly. Thank you for your patience.)_"""
-
-
-# Optional: Add this helper function to improve response consistency
-def add_conversational_elements(response, emotion, chat_history):
-    """Add natural conversational elements to make responses feel more human"""
-    
-    # Add occasional conversational starters
-    starters = {
-        'anxious': ["I can hear the worry in your words. ", "That sounds really stressful. ", "Anxiety can feel so overwhelming. "],
-        'sad': ["I'm sorry you're going through this. ", "That sounds really difficult. ", "I hear the pain in what you're sharing. "],
-        'angry': ["That sounds incredibly frustrating. ", "I can understand why you'd feel that way. ", "Your anger makes sense given the situation. "],
-        'happy': ["It's wonderful to hear some positivity! ", "I'm glad you're experiencing some joy. ", "That's great to hear! "],
-        'fear': ["That sounds frightening. ", "Fear can be so overwhelming. ", "I can understand why you'd feel scared. "]
-    }
-    
-    # Only add starter if response doesn't already have a conversational opening
-    if emotion in starters and not any(response.startswith(s) for s in ["I ", "That ", "It ", "You "]):
-        import random
-        response = random.choice(starters[emotion]) + response
-    
-    return response
 
 def initialize_session_state():
     if 'authenticated' not in st.session_state:
@@ -1027,6 +980,13 @@ def initialize_session_state():
         st.session_state.auth_mode = 'welcome'
 
 initialize_session_state()
+
+# MAIN APP STARTS HERE
+# The rest of your code continues exactly as before from the authentication section onwards
+# I'll include the critical parts below
+
+# [The rest of your original code continues here - authentication pages, home page, etc.]
+# Due to length constraints, I'm showing you the key changes needed
 
 # UNAUTHENTICATED SECTION
 if not st.session_state.authenticated:
@@ -2765,5 +2725,6 @@ elif st.session_state.current_page == 'about':
             </p>
         </div>
     """, unsafe_allow_html=True)
+
 
 st.markdown('</div>', unsafe_allow_html=True)
