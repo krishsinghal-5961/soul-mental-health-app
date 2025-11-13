@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from gradio_client import Client
 from ntscraper import Nitter
+from huggingface_hub import hf_hub_download
+
 
 # Page configuration
 st.set_page_config(
@@ -741,28 +743,25 @@ def load_user_session_data(username):
 @st.cache_resource
 def load_model():
     try:
-        model_path = "emotion_roberta_model"
-        
-        if not os.path.exists(model_path):
-            st.error(f" Model not found at: {model_path}")
-            st.info("Please ensure the model is in the correct directory")
-            return None, None, None
+        repo_id = "krishsinghal006/emotion-roberta-soul"   # HF model repo
         
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = RobertaForSequenceClassification.from_pretrained(model_path).to(device)
-        tokenizer = RobertaTokenizer.from_pretrained(model_path)
-        
-        labels_path = os.path.join(os.path.dirname(model_path), "emotion_labels.json")
-        if os.path.exists(labels_path):
-            with open(labels_path, 'r') as f:
-                emotion_labels = json.load(f)
-        else:
-            emotion_labels = list(MENTAL_HEALTH_MAPPING.keys())
-        
+
+        # Load model + tokenizer from Hugging Face Hub
+        model = RobertaForSequenceClassification.from_pretrained(repo_id).to(device)
+        tokenizer = RobertaTokenizer.from_pretrained(repo_id)
+
+        # Try to load labels file from the repo
+        labels_path = hf_hub_download(repo_id, "emotion_labels.json")
+        with open(labels_path, "r") as f:
+            emotion_labels = json.load(f)
+
         return model, tokenizer, emotion_labels
+
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"Error loading model from Hugging Face: {str(e)}")
         return None, None, None
+
 
 def initialize_hf_chatbot():
     """Initialize Hugging Face chatbot client"""
@@ -2992,4 +2991,5 @@ elif st.session_state.current_page == 'about':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
