@@ -885,7 +885,6 @@ def load_model():
             # Use default emotion labels if not available
             emotion_labels = list(MENTAL_HEALTH_MAPPING.keys())
             
-            st.success("✅ Model loaded successfully!")
             return model, tokenizer, emotion_labels
             
     except Exception as e:
@@ -3227,4 +3226,5 @@ elif st.session_state.current_page == 'mind_gym':
 
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
