@@ -125,39 +125,39 @@ st.markdown("""
     }
     
     /* Hero Section */
-    .hero-landing {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 6rem 5% 5rem;
-        text-align: center;
-        color: white;
-        position: relative;
-        overflow: hidden;
-        margin: -2rem -5% 2rem -5%;
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
-    }
-    
-    .hero-landing::before {
+        .hero-landing {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 6rem 5% 5rem;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            margin: -2rem -5% 2rem -5%;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+        }
+        
+        .hero-landing::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(120deg,
-            rgba(102,126,234,0.25),
-            rgba(118,75,162,0.25),
-            rgba(80,220,255,0.20),
-            rgba(255,180,250,0.25),
-            rgba(102,126,234,0.25)
+        background: conic-gradient(
+            from 180deg,
+            rgba(102,126,234,0.6),
+            rgba(118,75,162,0.7),
+            rgba(80,220,255,0.6),
+            rgba(255,180,250,0.6),
+            rgba(102,126,234,0.6)
         );
-        background-size: 300% 300%;
-        animation: calmAurora 22s ease-in-out infinite;
+        animation: rotateWave 10s linear infinite;
         filter: blur(80px);
-        opacity: 0.7;
+        opacity: 0.8;
     }
     
-    @keyframes calmAurora {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+    @keyframes rotateWave {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
     }
+
 
     }
     
@@ -3235,6 +3235,7 @@ elif st.session_state.current_page == 'mind_gym':
 
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
