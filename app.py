@@ -12,8 +12,7 @@ import hashlib
 import time
 from pathlib import Path
 from gradio_client import Client
-import snscrape.modules.twitter as sntwitter
-
+from ntscraper import Nitter
 
 # Page configuration
 st.set_page_config(
@@ -819,30 +818,43 @@ def predict_emotions_multilabel(text, model, tokenizer, emotion_labels, top_k=5)
     return results
 
 def scrape_twitter_tweets(username, max_tweets=50):
-    """Scrape recent tweets from a Twitter handle using snscrape"""
+    """Scrape recent tweets from a Twitter handle using ntscraper"""
     tweets_list = []
     
     try:
+        # Remove @ if user includes it
         username = username.lstrip('@')
         
-        query = f"from:{username} -filter:retweets -filter:replies"
+        # Initialize scraper
+        scraper = Nitter(log_level=1, skip_instance_check=False)
         
-        for i, tweet in enumerate(sntwitter.TwitterSearchScraper(query).get_items()):
-            if i >= max_tweets:
-                break
+        # Get tweets
+        tweets = scraper.get_tweets(username, mode='user', number=max_tweets)
+        
+        if not tweets or 'tweets' not in tweets:
+            return None, "No tweets found or account doesn't exist"
+        
+        # Process tweets
+        for tweet in tweets['tweets']:
+            # Skip retweets and replies
+            if tweet.get('is-retweet', False) or tweet.get('is-reply', False):
+                continue
             
             tweets_list.append({
-                'date': tweet.date,
-                'content': tweet.rawContent,
-                'likes': tweet.likeCount,
-                'retweets': tweet.retweetCount
+                'date': tweet.get('date', 'Unknown'),
+                'content': tweet.get('text', ''),
+                'likes': tweet.get('stats', {}).get('likes', 0),
+                'retweets': tweet.get('stats', {}).get('retweets', 0)
             })
+        
+        if len(tweets_list) == 0:
+            return None, "No valid tweets found (all were retweets or replies)"
         
         return pd.DataFrame(tweets_list), None
     
     except Exception as e:
-        return None, str(e)
-
+        return None, f"Error: {str(e)}"
+        
 def calculate_risk_score(emotions_data):
     risk_weights = {'high': 3, 'medium': 2, 'low': 1}
     total_score = sum(risk_weights[e['risk_level']] * e['confidence'] for e in emotions_data)
@@ -2980,3 +2992,4 @@ elif st.session_state.current_page == 'about':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
