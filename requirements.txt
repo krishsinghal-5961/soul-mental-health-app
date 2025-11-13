@@ -7,4 +7,6 @@ plotly
 gradio-client
 sentencepiece
 protobuf
-snscrape
+ntscraper
+playwright
+
