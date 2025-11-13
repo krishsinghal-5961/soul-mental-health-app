@@ -20,6 +20,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+HUGGINGFACE_MODEL_NAME = "krishsinghal006/emotion-roberta-soul" 
 
 st.markdown("""
     <style>
@@ -865,28 +866,32 @@ def save_gratitude_entry(username, entry):
 
 @st.cache_resource
 def load_model():
+    """Load model from Hugging Face Hub"""
     try:
-        model_path = "emotion_roberta_model"
-        
-        if not os.path.exists(model_path):
-            st.error(f" Model not found at: {model_path}")
-            st.info("Please ensure the model is in the correct directory")
-            return None, None, None
-        
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = RobertaForSequenceClassification.from_pretrained(model_path).to(device)
-        tokenizer = RobertaTokenizer.from_pretrained(model_path)
-        
-        labels_path = os.path.join(os.path.dirname(model_path), "emotion_labels.json")
-        if os.path.exists(labels_path):
-            with open(labels_path, 'r') as f:
-                emotion_labels = json.load(f)
-        else:
+        with st.spinner("🔄 Loading AI model from Hugging Face... This may take a minute on first load."):
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            
+            # Load model and tokenizer directly from Hugging Face
+            model = RobertaForSequenceClassification.from_pretrained(
+                HUGGINGFACE_MODEL_NAME,
+                trust_remote_code=True
+            ).to(device)
+            
+            tokenizer = RobertaTokenizer.from_pretrained(
+                HUGGINGFACE_MODEL_NAME,
+                trust_remote_code=True
+            )
+            
+            # Use default emotion labels if not available
             emotion_labels = list(MENTAL_HEALTH_MAPPING.keys())
-        
-        return model, tokenizer, emotion_labels
+            
+            st.success("✅ Model loaded successfully!")
+            return model, tokenizer, emotion_labels
+            
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"❌ Error loading model from Hugging Face: {str(e)}")
+        st.info(f"Please ensure '{HUGGINGFACE_MODEL_NAME}' is a valid Hugging Face model repository.")
+        st.info("Make sure your model is public or you have the correct access permissions.")
         return None, None, None
 
 def initialize_hf_chatbot():
@@ -3219,5 +3224,6 @@ elif st.session_state.current_page == 'mind_gym':
             <p style='margin: 0;'>Every small action counts toward building a healthier mind. You're doing amazing work!</p>
         </div>
     """, unsafe_allow_html=True)
+
 
 st.markdown('</div>', unsafe_allow_html=True)
