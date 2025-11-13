@@ -136,27 +136,22 @@ st.markdown("""
             box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
         }
         
-        .hero-landing::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(
-                135deg,
-                rgba(255,255,255,0.12) 0px,
-                rgba(255,255,255,0.12) 4px,
-                rgba(255,255,255,0.05) 4px,
-                rgba(255,255,255,0.05) 12px
-            );
-            animation: moveLines 10s linear infinite;
-            opacity: 0.6;
-            z-index: 0;
-        }
-        
-        @keyframes moveLines {
-            from { transform: translateX(-40%) translateY(-40%); }
-            to   { transform: translateX(40%) translateY(40%); }
-        }
-
+    .hero-landing::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 8s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.3; }
+        50% { transform: scale(1.2) rotate(180deg); opacity: 0.6; }
+    }
+    
     }
     
     .hero-content {
@@ -3233,6 +3228,7 @@ elif st.session_state.current_page == 'mind_gym':
 
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
