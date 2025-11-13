@@ -864,7 +864,7 @@ def save_gratitude_entry(username, entry):
     except Exception as e:
         st.error(f"Error saving gratitude entry: {str(e)}")
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_model():
     """Load model from Hugging Face Hub"""
     try:
@@ -3227,3 +3227,4 @@ elif st.session_state.current_page == 'mind_gym':
 
 
 st.markdown('</div>', unsafe_allow_html=True)
+
