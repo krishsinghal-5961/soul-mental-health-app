@@ -9,4 +9,8 @@ sentencepiece
 protobuf
 ntscraper
 playwright
+reportlab
+matplotlib
+pillow
+
 
