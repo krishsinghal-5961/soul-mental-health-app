@@ -12,6 +12,18 @@ import hashlib
 import time
 from pathlib import Path
 from gradio_client import Client
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.pdfgen import canvas
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import io
+import tempfile
 
 # Page configuration
 st.set_page_config(
@@ -1130,6 +1142,561 @@ def add_conversational_elements(response, emotion, chat_history):
     
     return response
 
+# ============================================
+# PDF REPORT GENERATION FUNCTIONS
+# ============================================
+
+def create_emotion_chart(emotion_history, start_date=None, end_date=None):
+    """Create emotion distribution pie chart"""
+    # Filter by date range
+    filtered_history = []
+    for entry in emotion_history:
+        entry_date = entry['timestamp']
+        if isinstance(entry_date, str):
+            entry_date = datetime.fromisoformat(entry_date)
+        
+        if start_date and entry_date < start_date:
+            continue
+        if end_date and entry_date > end_date:
+            continue
+        
+        filtered_history.append(entry)
+    
+    if not filtered_history:
+        return None
+    
+    # Count emotions
+    emotion_counts = {}
+    for entry in filtered_history:
+        if entry['emotions']:
+            primary_emotion = entry['emotions'][0]['emotion']
+            emotion_counts[primary_emotion] = emotion_counts.get(primary_emotion, 0) + 1
+    
+    # Create pie chart
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    emotions = list(emotion_counts.keys())[:10]  # Top 10
+    counts = [emotion_counts[e] for e in emotions]
+    
+    colors_list = plt.cm.Set3(range(len(emotions)))
+    ax.pie(counts, labels=emotions, autopct='%1.1f%%', colors=colors_list, startangle=90)
+    ax.set_title('Emotion Distribution', fontsize=14, fontweight='bold')
+    
+    # Save to bytes
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf
+
+def create_risk_trend_chart(emotion_history, start_date=None, end_date=None):
+    """Create risk score trend line chart"""
+    # Filter by date range
+    filtered_history = []
+    for entry in emotion_history:
+        entry_date = entry['timestamp']
+        if isinstance(entry_date, str):
+            entry_date = datetime.fromisoformat(entry_date)
+        
+        if start_date and entry_date < start_date:
+            continue
+        if end_date and entry_date > end_date:
+            continue
+        
+        filtered_history.append(entry)
+    
+    if not filtered_history:
+        return None
+    
+    # Extract data
+    timestamps = [e['timestamp'] if isinstance(e['timestamp'], datetime) 
+                  else datetime.fromisoformat(e['timestamp']) for e in filtered_history]
+    risk_scores = [e['risk_score'] for e in filtered_history]
+    
+    # Create line chart
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    ax.plot(timestamps, risk_scores, marker='o', linewidth=2, markersize=6, 
+            color='#667eea', label='Risk Score')
+    ax.axhline(y=66, color='red', linestyle='--', label='High Risk Threshold', alpha=0.7)
+    ax.axhline(y=33, color='orange', linestyle='--', label='Medium Risk Threshold', alpha=0.7)
+    
+    ax.set_xlabel('Date', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Risk Score', fontsize=12, fontweight='bold')
+    ax.set_title('Risk Score Trend Over Time', fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right')
+    ax.grid(True, alpha=0.3)
+    
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    # Save to bytes
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf
+
+def create_dass_chart(dass_results, start_date=None, end_date=None):
+    """Create DASS-42 scores bar chart"""
+    # Filter by date range
+    filtered_results = []
+    for result in dass_results:
+        result_date = datetime.fromisoformat(result['timestamp'])
+        
+        if start_date and result_date < start_date:
+            continue
+        if end_date and result_date > end_date:
+            continue
+        
+        filtered_results.append(result)
+    
+    if not filtered_results:
+        return None
+    
+    # Get latest result
+    latest = filtered_results[-1]
+    scores = latest['scores']
+    
+    # Create bar chart
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    categories = ['Depression', 'Anxiety', 'Stress']
+    values = [scores['depression'], scores['anxiety'], scores['stress']]
+    colors_list = ['#667eea', '#f093fb', '#4facfe']
+    
+    bars = ax.bar(categories, values, color=colors_list, alpha=0.8, edgecolor='black', linewidth=1.5)
+    
+    ax.set_ylabel('Score', fontsize=12, fontweight='bold')
+    ax.set_title('DASS-42 Scores', fontsize=14, fontweight='bold')
+    ax.set_ylim(0, max(values) + 10)
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, values):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(value)}',
+                ha='center', va='bottom', fontweight='bold')
+    
+    plt.tight_layout()
+    
+    # Save to bytes
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf
+
+def generate_pdf_report(username, start_date=None, end_date=None):
+    """
+    Generate comprehensive PDF report for user
+    
+    Args:
+        username: str - username to generate report for
+        start_date: datetime or None - start date for filtering
+        end_date: datetime or None - end date for filtering
+    
+    Returns:
+        BytesIO object containing the PDF
+    """
+    
+    # Load user data
+    users = load_users()
+    if username not in users:
+        return None
+    
+    user_data = users[username]
+    
+    # Create PDF buffer
+    buffer = io.BytesIO()
+    
+    # Create PDF document
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=50,
+        leftMargin=50,
+        topMargin=50,
+        bottomMargin=50
+    )
+    
+    # Container for PDF elements
+    elements = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#667eea'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#667eea'),
+        spaceAfter=12,
+        spaceBefore=12,
+        fontName='Helvetica-Bold'
+    )
+    
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        alignment=TA_JUSTIFY,
+        spaceAfter=10
+    )
+    
+    # Title
+    date_range_str = ""
+    if start_date and end_date:
+        date_range_str = f"<br/>{start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
+    elif start_date:
+        date_range_str = f"<br/>From {start_date.strftime('%B %d, %Y')}"
+    elif end_date:
+        date_range_str = f"<br/>Until {end_date.strftime('%B %d, %Y')}"
+    else:
+        date_range_str = "<br/>Complete History"
+    
+    title = Paragraph(f"Soul - Mental Health Report<br/><font size=14>{username}</font>{date_range_str}", title_style)
+    elements.append(title)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Report metadata
+    report_date = datetime.now().strftime('%B %d, %Y at %I:%M %p')
+    metadata = Paragraph(f"<b>Report Generated:</b> {report_date}<br/><b>Platform:</b> Soul Mental Wellness", normal_style)
+    elements.append(metadata)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # ============ SECTION 1: USER OVERVIEW ============
+    elements.append(Paragraph("1. User Overview", heading_style))
+    
+    overview_data = [
+        ['Registration Date', user_data.get('registered_date', 'N/A')],
+        ['Last Login', user_data.get('last_login', 'N/A')],
+        ['Total Analyses', str(user_data.get('analysis_count', 0))],
+        ['DASS-42 Completed', 'Yes' if user_data.get('dass_completed', False) else 'No']
+    ]
+    
+    overview_table = Table(overview_data, colWidths=[2.5*inch, 3.5*inch])
+    overview_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f3f4f6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+    ]))
+    
+    elements.append(overview_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # ============ SECTION 2: DASS-42 RESULTS ============
+    dass_results = user_data.get('dass_history', [])
+    
+    if dass_results:
+        # Filter DASS results by date
+        filtered_dass = []
+        for result in dass_results:
+            result_date = datetime.fromisoformat(result['timestamp'])
+            if start_date and result_date < start_date:
+                continue
+            if end_date and result_date > end_date:
+                continue
+            filtered_dass.append(result)
+        
+        if filtered_dass:
+            elements.append(Paragraph("2. DASS-42 Assessment Results", heading_style))
+            
+            latest_dass = filtered_dass[-1]
+            scores = latest_dass['scores']
+            severity = latest_dass['severity']
+            
+            dass_text = f"""
+            <b>Latest Assessment Date:</b> {datetime.fromisoformat(latest_dass['timestamp']).strftime('%B %d, %Y')}<br/>
+            <b>Completion:</b> {latest_dass.get('completion_percentage', 100):.1f}%<br/><br/>
+            <b>Depression Score:</b> {scores['depression']} - {severity['depression']}<br/>
+            <b>Anxiety Score:</b> {scores['anxiety']} - {severity['anxiety']}<br/>
+            <b>Stress Score:</b> {scores['stress']} - {severity['stress']}<br/><br/>
+            <b>Total Assessments Completed:</b> {len(filtered_dass)}
+            """
+            elements.append(Paragraph(dass_text, normal_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Add DASS chart
+            dass_chart = create_dass_chart(dass_results, start_date, end_date)
+            if dass_chart:
+                img = Image(dass_chart, width=5*inch, height=3*inch)
+                elements.append(img)
+                elements.append(Spacer(1, 0.2*inch))
+        else:
+            elements.append(Paragraph("2. DASS-42 Assessment Results", heading_style))
+            elements.append(Paragraph("No DASS-42 assessments in selected period.", normal_style))
+    else:
+        elements.append(Paragraph("2. DASS-42 Assessment Results", heading_style))
+        elements.append(Paragraph("No DASS-42 assessments completed yet.", normal_style))
+    
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # ============ SECTION 3: EMOTION ANALYSIS SUMMARY ============
+    emotion_history = user_data.get('emotion_history', [])
+    
+    if emotion_history:
+        # Filter emotion history by date
+        filtered_emotions = []
+        for entry in emotion_history:
+            entry_date = entry['timestamp']
+            if isinstance(entry_date, str):
+                entry_date = datetime.fromisoformat(entry_date)
+            
+            if start_date and entry_date < start_date:
+                continue
+            if end_date and entry_date > end_date:
+                continue
+            
+            filtered_emotions.append(entry)
+        
+        if filtered_emotions:
+            elements.append(Paragraph("3. Emotion Analysis Summary", heading_style))
+            
+            # Calculate statistics
+            total_analyses = len(filtered_emotions)
+            avg_risk = sum(e['risk_score'] for e in filtered_emotions) / total_analyses
+            high_risk_count = sum(1 for e in filtered_emotions if e['risk_score'] > 66)
+            
+            # Get most common emotion
+            emotion_counts = {}
+            for entry in filtered_emotions:
+                if entry['emotions']:
+                    emotion = entry['emotions'][0]['emotion']
+                    emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+            
+            most_common = max(emotion_counts.items(), key=lambda x: x[1])[0] if emotion_counts else "N/A"
+            
+            emotion_summary = f"""
+            <b>Total Emotion Analyses:</b> {total_analyses}<br/>
+            <b>Average Risk Score:</b> {avg_risk:.1f} / 100<br/>
+            <b>High Risk Sessions:</b> {high_risk_count}<br/>
+            <b>Most Common Emotion:</b> {most_common.title()}<br/>
+            """
+            elements.append(Paragraph(emotion_summary, normal_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Add emotion distribution chart
+            emotion_chart = create_emotion_chart(emotion_history, start_date, end_date)
+            if emotion_chart:
+                img = Image(emotion_chart, width=5*inch, height=3.5*inch)
+                elements.append(img)
+                elements.append(Spacer(1, 0.2*inch))
+            
+            # Add risk trend chart
+            risk_chart = create_risk_trend_chart(emotion_history, start_date, end_date)
+            if risk_chart:
+                elements.append(PageBreak())
+                elements.append(Paragraph("Risk Score Trend", heading_style))
+                img = Image(risk_chart, width=6*inch, height=3*inch)
+                elements.append(img)
+                elements.append(Spacer(1, 0.2*inch))
+        else:
+            elements.append(Paragraph("3. Emotion Analysis Summary", heading_style))
+            elements.append(Paragraph("No emotion analyses in selected period.", normal_style))
+    else:
+        elements.append(Paragraph("3. Emotion Analysis Summary", heading_style))
+        elements.append(Paragraph("No emotion analyses recorded yet.", normal_style))
+    
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # ============ SECTION 4: DETAILED EMOTION ENTRIES ============
+    if filtered_emotions and len(filtered_emotions) > 0:
+        elements.append(PageBreak())
+        elements.append(Paragraph("4. Detailed Emotion Analysis Entries", heading_style))
+        
+        # Show last 10 entries or all if less
+        display_count = min(10, len(filtered_emotions))
+        elements.append(Paragraph(f"Showing most recent {display_count} entries:", normal_style))
+        elements.append(Spacer(1, 0.1*inch))
+        
+        for entry in reversed(filtered_emotions[-display_count:]):
+            entry_date = entry['timestamp']
+            if isinstance(entry_date, str):
+                entry_date = datetime.fromisoformat(entry_date)
+            
+            date_str = entry_date.strftime('%B %d, %Y at %I:%M %p')
+            
+            text_preview = entry['text'][:150] + "..." if len(entry['text']) > 150 else entry['text']
+            
+            primary_emotion = entry['emotions'][0] if entry['emotions'] else {'emotion': 'N/A', 'confidence': 0}
+            
+            entry_text = f"""
+            <b>Date:</b> {date_str}<br/>
+            <b>Text:</b> {text_preview}<br/>
+            <b>Primary Emotion:</b> {primary_emotion['emotion'].title()} ({primary_emotion['confidence']*100:.1f}% confidence)<br/>
+            <b>Risk Score:</b> {entry['risk_score']:.1f} / 100<br/>
+            <br/>
+            """
+            
+            elements.append(Paragraph(entry_text, normal_style))
+            elements.append(Spacer(1, 0.1*inch))
+    
+    # ============ SECTION 5: CHATBOT CONVERSATION HISTORY ============
+    chat_history = user_data.get('chat_history', [])
+    
+    if chat_history:
+        # Filter chat history by date
+        filtered_chat = []
+        for msg in chat_history:
+            msg_date = msg['timestamp']
+            if isinstance(msg_date, str):
+                msg_date = datetime.fromisoformat(msg_date)
+            
+            if start_date and msg_date < start_date:
+                continue
+            if end_date and msg_date > end_date:
+                continue
+            
+            filtered_chat.append(msg)
+        
+        if filtered_chat:
+            elements.append(PageBreak())
+            elements.append(Paragraph("5. Chatbot Conversation History", heading_style))
+            elements.append(Paragraph(f"Total Messages: {len(filtered_chat)}", normal_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            # Show last 20 messages
+            display_count = min(20, len(filtered_chat))
+            elements.append(Paragraph(f"Showing most recent {display_count} messages:", normal_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            for msg in reversed(filtered_chat[-display_count:]):
+                msg_date = msg['timestamp']
+                if isinstance(msg_date, str):
+                    msg_date = datetime.fromisoformat(msg_date)
+                
+                date_str = msg_date.strftime('%B %d, %Y at %I:%M %p')
+                role = "You" if msg['role'] == 'user' else "Soul AI"
+                
+                content_preview = msg['content'][:300] + "..." if len(msg['content']) > 300 else msg['content']
+                
+                msg_text = f"""
+                <b>[{role}]</b> - {date_str}<br/>
+                {content_preview}<br/>
+                <br/>
+                """
+                
+                elements.append(Paragraph(msg_text, normal_style))
+                elements.append(Spacer(1, 0.1*inch))
+        else:
+            elements.append(PageBreak())
+            elements.append(Paragraph("5. Chatbot Conversation History", heading_style))
+            elements.append(Paragraph("No chatbot conversations in selected period.", normal_style))
+    else:
+        elements.append(PageBreak())
+        elements.append(Paragraph("5. Chatbot Conversation History", heading_style))
+        elements.append(Paragraph("No chatbot conversations recorded yet.", normal_style))
+    
+    # ============ SECTION 6: COMMUNITY POSTS ============
+    elements.append(PageBreak())
+    elements.append(Paragraph("6. Community Activity", heading_style))
+    elements.append(Paragraph("Community posts are anonymous and not tracked per user in current implementation.", normal_style))
+    
+    # ============ SECTION 7: MIND GYM PROGRESS ============
+    mind_gym_data = user_data.get('mind_gym', {})
+    
+    if mind_gym_data:
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("7. Mind Gym Progress", heading_style))
+        
+        xp = mind_gym_data.get('xp', 0)
+        level = mind_gym_data.get('level', 1)
+        completed_tasks = mind_gym_data.get('completed_tasks', [])
+        
+        # Filter completed tasks by date
+        filtered_tasks = []
+        for task_id in completed_tasks:
+            # Extract date from task_id (format: task_xxx_YYYY-MM-DD)
+            try:
+                task_date_str = task_id.split('_')[-1]
+                task_date = datetime.strptime(task_date_str, '%Y-%m-%d')
+                
+                if start_date and task_date.date() < start_date.date():
+                    continue
+                if end_date and task_date.date() > end_date.date():
+                    continue
+                
+                filtered_tasks.append(task_id)
+            except:
+                continue
+        
+        mind_gym_text = f"""
+        <b>Current Level:</b> {level}<br/>
+        <b>Total XP:</b> {xp}<br/>
+        <b>Tasks Completed (in period):</b> {len(filtered_tasks)}<br/>
+        <b>Progress to Next Level:</b> {100 - (xp % 100)} XP remaining<br/>
+        """
+        elements.append(Paragraph(mind_gym_text, normal_style))
+    else:
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("7. Mind Gym Progress", heading_style))
+        elements.append(Paragraph("No Mind Gym activity recorded yet.", normal_style))
+    
+    # ============ SECTION 8: STREAK DATA ============
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph("8. Consistency & Streaks", heading_style))
+    
+    streak_count = user_data.get('streak_count', 0)
+    longest_streak = user_data.get('longest_streak', 0)
+    last_checkin = user_data.get('last_checkin_date', 'N/A')
+    
+    streak_text = f"""
+    <b>Current Streak:</b> {streak_count} days<br/>
+    <b>Longest Streak:</b> {longest_streak} days<br/>
+    <b>Last Check-in:</b> {last_checkin}<br/>
+    """
+    elements.append(Paragraph(streak_text, normal_style))
+    
+    # ============ FOOTER / DISCLAIMER ============
+    elements.append(PageBreak())
+    elements.append(Paragraph("Important Notice", heading_style))
+    
+    disclaimer = """
+    <b>This report is for informational purposes only and should not be used as a diagnostic tool.</b><br/><br/>
+    
+    Soul is an educational and supportive platform designed to help you track your emotional wellness patterns. 
+    This report provides insights based on your self-reported data and AI-powered emotion analysis.<br/><br/>
+    
+    <b>Please note:</b><br/>
+    • This is NOT a medical diagnosis<br/>
+    • Always consult licensed mental health professionals for clinical assessment<br/>
+    • If you're experiencing a crisis, please contact emergency services immediately<br/>
+    • Crisis Helpline: TELE MANAS (14416) | NIMHANS (080-46110007)<br/><br/>
+    
+    <b>Data Privacy:</b> Your data is confidential and encrypted. This report is generated on-demand and is not 
+    stored or shared with third parties.<br/><br/>
+    
+    Thank you for using Soul. Your mental health matters.
+    """
+    
+    elements.append(Paragraph(disclaimer, normal_style))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF bytes
+    buffer.seek(0)
+    return buffer
+
 def initialize_session_state():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
@@ -1462,6 +2029,9 @@ with col5:
         st.rerun()
     if st.button("About", key="nav_about", use_container_width=True):
         st.session_state.current_page = 'about'
+        st.rerun()
+    if st.button("Report", key="nav_report", use_container_width=True):
+        st.session_state.current_page = 'download_report'
         st.rerun()
 
 with col6:
@@ -3227,7 +3797,168 @@ elif st.session_state.current_page == 'mind_gym':
     """, unsafe_allow_html=True)
 
 
+# DOWNLOAD REPORT PAGE
+elif st.session_state.current_page == 'download_report':
+    st.markdown("""
+        <div class="section-header">
+            <div class="section-title">📊 Download Your Report</div>
+            <div class="section-subtitle">Generate a comprehensive PDF report of your mental health journey</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+        <div class="alert-modern alert-info-modern">
+            <h4 style='margin-top: 0;'>🔍 About Your Report</h4>
+            <p style='margin: 0;'>Your report includes DASS-42 scores, emotion analysis history, chatbot conversations, 
+            Mind Gym progress, and detailed visualizations of your mental health trends.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Report type selection
+    report_type = st.radio(
+        "Select Report Type:",
+        options=["Complete History", "Custom Date Range"],
+        horizontal=True
+    )
+    
+    start_date = None
+    end_date = None
+    
+    if report_type == "Custom Date Range":
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            start_date = st.date_input(
+                "Start Date",
+                value=datetime.now() - timedelta(days=30),
+                max_value=datetime.now()
+            )
+        
+        with col2:
+            end_date = st.date_input(
+                "End Date",
+                value=datetime.now(),
+                max_value=datetime.now(),
+                min_value=start_date
+            )
+        
+        # Convert to datetime
+        start_date = datetime.combine(start_date, datetime.min.time())
+        end_date = datetime.combine(end_date, datetime.max.time())
+        
+        st.info(f"📅 Report will cover: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        if st.button("🎯 Generate Report", use_container_width=True, type="primary"):
+            with st.spinner("Generating your comprehensive report... This may take a moment."):
+                try:
+                    # Generate PDF
+                    pdf_buffer = generate_pdf_report(
+                        st.session_state.username,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    if pdf_buffer:
+                        # Create filename
+                        date_suffix = ""
+                        if start_date and end_date:
+                            date_suffix = f"_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}"
+                        else:
+                            date_suffix = f"_complete_{datetime.now().strftime('%Y%m%d')}"
+                        
+                        filename = f"Soul_Report_{st.session_state.username}{date_suffix}.pdf"
+                        
+                        st.success("✅ Report generated successfully!")
+                        
+                        # Download button
+                        st.download_button(
+                            label="📥 Download PDF Report",
+                            data=pdf_buffer,
+                            file_name=filename,
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        st.markdown("""
+                            <div class="alert-modern alert-success-modern" style='margin-top: 1rem;'>
+                                <h4 style='margin-top: 0;'>✨ Your Report is Ready!</h4>
+                                <p style='margin: 0;'>Click the download button above to save your comprehensive mental health report. 
+                                Keep this for your records or share with your healthcare provider.</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error("Failed to generate report. Please try again.")
+                
+                except Exception as e:
+                    st.error(f"Error generating report: {str(e)}")
+                    st.info("Please ensure you have some data recorded before generating a report.")
+    
+    # Information cards
+    st.markdown("<br><h3 style='color: #1f2937;'>📋 What's Included in Your Report</h3>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+            <div class="feature-card-modern">
+                <h4 style='color: #667eea;'>📊 Assessment Data</h4>
+                <ul style='color: #1f2937; line-height: 2;'>
+                    <li>DASS-42 Scores</li>
+                    <li>Severity Levels</li>
+                    <li>Historical Trends</li>
+                    <li>Score Charts</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div class="feature-card-modern">
+                <h4 style='color: #667eea;'>🎭 Emotion Analysis</h4>
+                <ul style='color: #1f2937; line-height: 2;'>
+                    <li>All Text Entries</li>
+                    <li>Detected Emotions</li>
+                    <li>Risk Scores</li>
+                    <li>Trend Visualizations</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+            <div class="feature-card-modern">
+                <h4 style='color: #667eea;'>💬 Activity Logs</h4>
+                <ul style='color: #1f2937; line-height: 2;'>
+                    <li>Chatbot Conversations</li>
+                    <li>Mind Gym Progress</li>
+                    <li>Streak Data</li>
+                    <li>XP & Level</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("""
+        <div class="feature-card-modern" style='margin-top: 2rem;'>
+            <h4 style='color: #667eea; margin-top: 0;'>🔒 Privacy & Confidentiality</h4>
+            <p style='color: #1f2937; line-height: 1.8;'>
+                Your report is generated on-demand and contains only your personal data. It is not stored on our servers 
+                and is not shared with any third parties. The PDF is created locally in your session and downloaded directly 
+                to your device.
+            </p>
+            <p style='color: #1f2937; line-height: 1.8; margin-bottom: 0;'>
+                <b>Important:</b> This report is for your personal records or to share with your healthcare provider. 
+                Keep it secure as it contains sensitive mental health information.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
