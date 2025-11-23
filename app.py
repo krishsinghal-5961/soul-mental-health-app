@@ -3633,7 +3633,7 @@ elif st.session_state.current_page == 'community':
 elif st.session_state.current_page == 'mind_gym':
     st.markdown("""
         <div class="section-header">
-            <div class="section-title">Mind Gym — Gamified Mental Wellness</div>
+            <div class="section-title">Mind Gym </div>
             <div class="section-subtitle">Complete short daily exercises to strengthen your mental resilience</div>
         </div>
     """, unsafe_allow_html=True)
@@ -3960,6 +3960,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
