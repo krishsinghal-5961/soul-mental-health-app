@@ -2129,8 +2129,8 @@ if st.session_state.current_page == 'home':
         if st.button("Complete Assessment", use_container_width=True):
             st.session_state.current_page = 'questionnaire'
             st.rerun()
-
-     with col4:
+            
+    with col4:
         if st.button("Download Report", use_container_width=True):
             st.session_state.current_page = 'download_report'
             st.rerun()
@@ -3960,6 +3960,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
