@@ -2030,9 +2030,6 @@ with col5:
     if st.button("About", key="nav_about", use_container_width=True):
         st.session_state.current_page = 'about'
         st.rerun()
-    if st.button("Report", key="nav_report", use_container_width=True):
-        st.session_state.current_page = 'download_report'
-        st.rerun()
 
 with col6:
     if st.button("Clear History", key="nav_clear", use_container_width=True):
@@ -2116,7 +2113,7 @@ if st.session_state.current_page == 'home':
         </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if st.button("Quick Emotion Analysis", use_container_width=True, type="primary"):
@@ -2131,6 +2128,11 @@ if st.session_state.current_page == 'home':
     with col3:
         if st.button("Complete Assessment", use_container_width=True):
             st.session_state.current_page = 'questionnaire'
+            st.rerun()
+
+     with col4:
+        if st.button("Download Report", use_container_width=True):
+            st.session_state.current_page = 'download_report'
             st.rerun()
 
 # ANALYZE PAGE
@@ -3958,6 +3960,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
