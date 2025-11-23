@@ -408,7 +408,7 @@ st.markdown("""
     
     /* Progress Bar */
     .stProgress>div>div>div {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(90deg, #667eea 0%, #ffb300 100%);
     }
     
     /* Hide Streamlit Elements */
@@ -3958,6 +3958,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
