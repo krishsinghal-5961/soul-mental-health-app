@@ -16,8 +16,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from lab.lib.units import inch
+from lab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.pdfgen import canvas
 import matplotlib.pyplot as plt
 import matplotlib
@@ -3553,7 +3553,7 @@ elif st.session_state.current_page == 'community':
         key="community_post_input"
     )
     
-    if st.button("📤 Post to Community", use_container_width=True, type="primary"):
+    if st.button("Post to Community", use_container_width=True, type="primary"):
         if new_post and len(new_post.strip()) > 0:
             posts = load_community_posts()
             
@@ -3656,7 +3656,7 @@ elif st.session_state.current_page == 'mind_gym':
         st.markdown(f"""
             <div class="feature-card-modern" style='text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;'>
                 <h2 style='margin: 0; color: white;'>Level {st.session_state.level}</h2>
-                <p style='margin: 0.5rem 0; color: rgba(255,255,255,0.9);'>🧘‍♂️ XP: {st.session_state.xp_points}</p>
+                <p style='margin: 0.5rem 0; color: rgba(255,255,255,0.9);'>XP: {st.session_state.xp_points}</p>
                 <div style='background: rgba(255,255,255,0.2); border-radius: 10px; height: 20px; margin-top: 1rem; overflow: hidden;'>
                     <div style='background: #38ef7d; height: 100%; width: {progress_to_next*100}%; transition: width 0.5s ease;'></div>
                 </div>
@@ -3682,22 +3682,22 @@ elif st.session_state.current_page == 'mind_gym':
         
         for i in range(3):  # 3 cycles
             # Inhale
-            status_text.markdown("<h2 style='text-align: center; color: #667eea;'>Inhale...</h2>", unsafe_allow_html=True)
+            status_text.markdown("<h2 style='text-align: center; color: #007bff;'>Inhale...</h2>", unsafe_allow_html=True)
             for j in range(40):
                 time.sleep(0.1)
                 progress_bar.progress((j + 1) / 40)
             
             # Hold
-            status_text.markdown("<h2 style='text-align: center; color: #764ba2;'>Hold...</h2>", unsafe_allow_html=True)
+            status_text.markdown("<h2 style='text-align: center; color: #ffcc00;'>Hold...</h2>", unsafe_allow_html=True)
             time.sleep(2)
             
             # Exhale
-            status_text.markdown("<h2 style='text-align: center; color: #38ef7d;'>Exhale...</h2>", unsafe_allow_html=True)
+            status_text.markdown("<h2 style='text-align: center; color: #ff4c4c;'>Exhale...</h2>", unsafe_allow_html=True)
             for j in range(40):
                 time.sleep(0.15)
                 progress_bar.progress(1 - (j + 1) / 40)
         
-        status_text.markdown("<h2 style='text-align: center; color: #38ef7d;'>Great job!</h2>", unsafe_allow_html=True)
+        status_text.markdown("<h2 style='text-align: center; color: #00c853;'>Great job!</h2>", unsafe_allow_html=True)
         progress_bar.empty()
         
         # Award XP
@@ -3711,7 +3711,7 @@ elif st.session_state.current_page == 'mind_gym':
     # Exercise 2: Gratitude Journal
     st.markdown("""
         <div class="feature-card-modern">
-            <h3 style='color: #667eea; margin-top: 0;'>🙏 Gratitude Journal</h3>
+            <h3 style='color: #667eea; margin-top: 0;'>Gratitude Journal</h3>
             <p style='color: #1f2937;'>Write down 3 things you're grateful for today.</p>
         </div>
     """, unsafe_allow_html=True)
@@ -3753,7 +3753,7 @@ elif st.session_state.current_page == 'mind_gym':
     # Exercise 3: Daily Mood Challenge Tracker
     st.markdown("""
         <div class="feature-card-modern">
-            <h3 style='color: #667eea; margin-top: 0;'>✅ Daily Mood Challenge Tracker</h3>
+            <h3 style='color: #667eea; margin-top: 0;'>Daily Mood Challenge Tracker</h3>
             <p style='color: #1f2937;'>Complete small daily tasks to boost your mental wellness.</p>
         </div>
     """, unsafe_allow_html=True)
@@ -3801,14 +3801,14 @@ elif st.session_state.current_page == 'mind_gym':
 elif st.session_state.current_page == 'download_report':
     st.markdown("""
         <div class="section-header">
-            <div class="section-title">📊 Download Your Report</div>
+            <div class="section-title">Download Your Report</div>
             <div class="section-subtitle">Generate a comprehensive PDF report of your mental health journey</div>
         </div>
     """, unsafe_allow_html=True)
     
     st.markdown("""
         <div class="alert-modern alert-info-modern">
-            <h4 style='margin-top: 0;'>🔍 About Your Report</h4>
+            <h4 style='margin-top: 0;'>About Your Report</h4>
             <p style='margin: 0;'>Your report includes DASS-42 scores, emotion analysis history, chatbot conversations, 
             Mind Gym progress, and detailed visualizations of your mental health trends.</p>
         </div>
@@ -3846,14 +3846,14 @@ elif st.session_state.current_page == 'download_report':
         start_date = datetime.combine(start_date, datetime.min.time())
         end_date = datetime.combine(end_date, datetime.max.time())
         
-        st.info(f"📅 Report will cover: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}")
+        st.info(f"Report will cover: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        if st.button("🎯 Generate Report", use_container_width=True, type="primary"):
+        if st.button("Generate Report", use_container_width=True, type="primary"):
             with st.spinner("Generating your comprehensive report... This may take a moment."):
                 try:
                     # Generate PDF
@@ -3873,11 +3873,11 @@ elif st.session_state.current_page == 'download_report':
                         
                         filename = f"Soul_Report_{st.session_state.username}{date_suffix}.pdf"
                         
-                        st.success("✅ Report generated successfully!")
+                        st.success("Report generated successfully!")
                         
                         # Download button
                         st.download_button(
-                            label="📥 Download PDF Report",
+                            label="Download PDF Report",
                             data=pdf_buffer,
                             file_name=filename,
                             mime="application/pdf",
@@ -3886,7 +3886,7 @@ elif st.session_state.current_page == 'download_report':
                         
                         st.markdown("""
                             <div class="alert-modern alert-success-modern" style='margin-top: 1rem;'>
-                                <h4 style='margin-top: 0;'>✨ Your Report is Ready!</h4>
+                                <h4 style='margin-top: 0;'>Your Report is Ready!</h4>
                                 <p style='margin: 0;'>Click the download button above to save your comprehensive mental health report. 
                                 Keep this for your records or share with your healthcare provider.</p>
                             </div>
@@ -3899,14 +3899,14 @@ elif st.session_state.current_page == 'download_report':
                     st.info("Please ensure you have some data recorded before generating a report.")
     
     # Information cards
-    st.markdown("<br><h3 style='color: #1f2937;'>📋 What's Included in Your Report</h3>", unsafe_allow_html=True)
+    st.markdown("<br><h3 style='color: #1f2937;'>What's Included in Your Report</h3>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("""
             <div class="feature-card-modern">
-                <h4 style='color: #667eea;'>📊 Assessment Data</h4>
+                <h4 style='color: #667eea;'>Assessment Data</h4>
                 <ul style='color: #1f2937; line-height: 2;'>
                     <li>DASS-42 Scores</li>
                     <li>Severity Levels</li>
@@ -3919,7 +3919,7 @@ elif st.session_state.current_page == 'download_report':
     with col2:
         st.markdown("""
             <div class="feature-card-modern">
-                <h4 style='color: #667eea;'>🎭 Emotion Analysis</h4>
+                <h4 style='color: #667eea;'>Emotion Analysis</h4>
                 <ul style='color: #1f2937; line-height: 2;'>
                     <li>All Text Entries</li>
                     <li>Detected Emotions</li>
@@ -3932,7 +3932,7 @@ elif st.session_state.current_page == 'download_report':
     with col3:
         st.markdown("""
             <div class="feature-card-modern">
-                <h4 style='color: #667eea;'>💬 Activity Logs</h4>
+                <h4 style='color: #667eea;'>Activity Logs</h4>
                 <ul style='color: #1f2937; line-height: 2;'>
                     <li>Chatbot Conversations</li>
                     <li>Mind Gym Progress</li>
@@ -3944,7 +3944,7 @@ elif st.session_state.current_page == 'download_report':
     
     st.markdown("""
         <div class="feature-card-modern" style='margin-top: 2rem;'>
-            <h4 style='color: #667eea; margin-top: 0;'>🔒 Privacy & Confidentiality</h4>
+            <h4 style='color: #667eea; margin-top: 0;'>Privacy & Confidentiality</h4>
             <p style='color: #1f2937; line-height: 1.8;'>
                 Your report is generated on-demand and contains only your personal data. It is not stored on our servers 
                 and is not shared with any third parties. The PDF is created locally in your session and downloaded directly 
@@ -3958,6 +3958,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
