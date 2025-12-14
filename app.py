@@ -3767,6 +3767,14 @@ elif st.session_state.current_page == 'mind_gym':
         {"id": "task_walk", "label": "Go for a short walk", "xp": 20},
         {"id": "task_water", "label": "Drink a glass of water mindfully", "xp": 20}
     ]
+    # Load user's custom tasks
+    if 'custom_tasks' not in user_data.get('mind_gym', {}):
+        if 'mind_gym' not in user_data:
+            user_data['mind_gym'] = {}
+        user_data['mind_gym']['custom_tasks'] = []
+        save_users(users)
+    
+    custom_tasks = user_data['mind_gym'].get('custom_tasks', [])
     
     for task in daily_tasks:
         task_id = f"{task['id']}_{datetime.now().date()}"
@@ -3790,6 +3798,98 @@ elif st.session_state.current_page == 'mind_gym':
                     st.rerun()
             else:
                 st.markdown("Done")
+        st.markdown("<br><h3 style='color: #1f2937;'>➕ Create Your Own Task</h3>", unsafe_allow_html=True)
+
+with st.expander("Add Custom Task", expanded=False):
+    st.markdown("""
+        <div style='background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;'>
+            <p style='margin: 0; color: #1f2937;'>Create personalized wellness tasks that matter to you!</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col_task, col_xp = st.columns([3, 1])
+    
+    with col_task:
+        new_task_label = st.text_input(
+            "Task Description",
+            placeholder="e.g., Read 10 pages of a book",
+            key="new_task_input"
+        )
+    
+    with col_xp:
+        new_task_xp = st.number_input(
+            "XP Reward",
+            min_value=10,
+            max_value=100,
+            value=20,
+            step=10,
+            key="new_task_xp"
+        )
+    
+    col_add, col_space = st.columns([1, 2])
+    
+    with col_add:
+        if st.button("Add Task", use_container_width=True, type="primary"):
+            if new_task_label and len(new_task_label.strip()) > 0:
+                # Create unique task ID
+                task_id = f"custom_{len(custom_tasks)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                
+                new_custom_task = {
+                    'id': task_id,
+                    'label': new_task_label.strip(),
+                    'xp': new_task_xp,
+                    'created_at': datetime.now().isoformat()
+                }
+                
+                # Add to user's custom tasks
+                custom_tasks.append(new_custom_task)
+                users[st.session_state.username]['mind_gym']['custom_tasks'] = custom_tasks
+                save_users(users)
+                
+                st.success(f"Task added! Worth {new_task_xp} XP")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("Please enter a task description!")
+
+# Display Custom Tasks Section
+if len(custom_tasks) > 0:
+    st.markdown("<br><h3 style='color: #1f2937;'> Your Custom Tasks</h3>", unsafe_allow_html=True)
+    
+    for idx, task in enumerate(custom_tasks):
+        task_id = f"{task['id']}_{datetime.now().date()}"
+        is_completed = task_id in completed_tasks
+        
+        col1, col2, col3 = st.columns([4, 1, 1])
+        
+        with col1:
+            st.markdown(f"{'✅' if is_completed else '⬜'} {task['label']} ({task['xp']} XP)")
+        
+        with col2:
+            if not is_completed:
+                if st.button("Complete", key=f"complete_custom_{idx}", use_container_width=True):
+                    # Mark as complete
+                    completed_tasks.append(task_id)
+                    users[st.session_state.username]['mind_gym']['completed_tasks'] = completed_tasks
+                    save_users(users)
+                    
+                    # Award XP
+                    add_xp(st.session_state.username, task['xp'])
+                    st.success(f"{task['xp']} XP! Great job!")
+                    time.sleep(1)
+                    st.rerun()
+            else:
+                st.markdown("✓ Done")
+        
+        with col3:
+            if st.button("DEL", key=f"delete_custom_{idx}", help="Delete this task"):
+                # Remove from custom tasks
+                custom_tasks.pop(idx)
+                users[st.session_state.username]['mind_gym']['custom_tasks'] = custom_tasks
+                save_users(users)
+                st.success("Task deleted!")
+                time.sleep(1)
+                st.rerun()
     
     st.markdown("""
         <div class="alert-modern alert-success-modern" style='margin-top: 2rem;'>
@@ -3960,6 +4060,7 @@ elif st.session_state.current_page == 'download_report':
     """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
